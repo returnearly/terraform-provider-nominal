@@ -1,0 +1,8 @@
+---
+description: Default git branch is master, never main
+alwaysApply: true
+---
+
+# Git default branch
+
+Use `master` as the default branch. Never create or push `main`.
