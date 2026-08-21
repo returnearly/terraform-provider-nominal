@@ -36,7 +36,7 @@ func (p *nominalProvider) Metadata(_ context.Context, _ provider.MetadataRequest
 
 func (p *nominalProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Manage Nominal monitors through GraphQL mutations. GraphQL `errors[]` are treated as failed applies even when HTTP status is 200.",
+		MarkdownDescription: "Manage Nominal monitors, notification channels, status pages, and maintenance windows through GraphQL. GraphQL `errors[]` are treated as failed applies even when HTTP status is 200.",
 		Attributes: map[string]schema.Attribute{
 			"endpoint": schema.StringAttribute{
 				Required:            true,
@@ -82,9 +82,15 @@ func (p *nominalProvider) Resources(_ context.Context) []func() resource.Resourc
 	return []func() resource.Resource{
 		NewMonitorResource,
 		NewNotificationChannelResource,
+		NewStatusPageResource,
+		NewMaintenanceWindowResource,
 	}
 }
 
 func (p *nominalProvider) DataSources(_ context.Context) []func() datasource.DataSource {
-	return nil
+	return []func() datasource.DataSource{
+		NewProbeDataSource,
+		NewProbesDataSource,
+		NewMonitorsDataSource,
+	}
 }
