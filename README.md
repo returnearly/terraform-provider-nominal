@@ -4,6 +4,10 @@ Terraform provider for [Nominal](https://github.com/returnearly/nominal). Regist
 
 Talks to Nominal over **GraphQL only**. HTTP 200 with `errors[]` is a failed apply.
 
+Resources: `nominal_monitor`, `nominal_notification_channel`, `nominal_status_page`, `nominal_maintenance_window`.
+
+Data sources: `nominal_probe`, `nominal_probes`, `nominal_monitors`.
+
 ## Example
 
 ```hcl
@@ -20,6 +24,10 @@ provider "nominal" {
   token    = var.nominal_token
 }
 
+data "nominal_probe" "local" {
+  slug = "local"
+}
+
 resource "nominal_notification_channel" "ops" {
   name = "Ops webhook"
   type = "Webhook"
@@ -31,15 +39,61 @@ resource "nominal_notification_channel" "ops" {
 }
 
 resource "nominal_monitor" "api" {
-  name             = "API health"
-  type             = "Http"
-  target           = "https://example.com/health"
-  method           = "GET"
-  conditions       = ["[STATUS] == 200"]
-  channel_ids      = [nominal_notification_channel.ops.id]
-  retention_days   = 30
+  name        = "API health"
+  description = "Public HTTPS check. Page payments if this is down."
+  tags        = ["prod", "critical"]
+  type        = "Http"
+  target      = "https://example.com/health"
+  method      = "GET"
+  proxy_url   = "socks5h://127.0.0.1:1080"
+  conditions  = ["[STATUS] == 200"]
+  probe_ids   = [data.nominal_probe.local.id]
+  channel_ids = [nominal_notification_channel.ops.id]
+}
+
+resource "nominal_monitor" "resolver" {
+  name           = "example.com A"
+  type           = "Dns"
+  target         = "1.1.1.1"
+  dns_query_name = "example.com"
+  dns_query_type = "A"
+  conditions     = ["[DNS_RCODE] == NOERROR"]
+}
+
+resource "nominal_monitor" "backup" {
+  name   = "Nightly backup"
+  type   = "Heartbeat"
+  target = "backup-job"
+}
+
+resource "nominal_status_page" "public" {
+  name      = "Acme Status"
+  slug      = "acme"
+  published = true
+  theme     = "Dark"
+
+  monitor {
+    monitor_id  = nominal_monitor.api.id
+    public_name = "API"
+  }
+}
+
+resource "nominal_maintenance_window" "db" {
+  title       = "Database upgrade"
+  message     = "Upgrading Postgres."
+  starts_at   = "2026-08-21 02:00:00"
+  ends_at     = "2026-08-21 04:00:00"
+  monitor_ids = [nominal_monitor.api.id]
 }
 ```
+
+Monitor types: `Http`, `GraphQL`, `Ping`, `Tcp`, `Dns`, `Tls`, `Heartbeat`, `Udp`, `WebSocket`, `Mysql`, `Redis`, `Postgres`.
+
+Heartbeat monitors expose `heartbeat_url`, `heartbeat_start_url`, `heartbeat_finish_url`, and `heartbeat_error_url` after apply. Badge URLs and rolling uptime are computed on every monitor.
+
+`group` is deprecated. Use `tags`. If `tags` is omitted, `group` is sent as a single tag so older configs still apply.
+
+Maintenance window timestamps use Nominal's GraphQL DateTime format: `YYYY-MM-DD HH:MM:SS`.
 
 Build locally:
 

@@ -7,6 +7,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/returnearly/terraform-provider-nominal/internal/client"
 )
@@ -35,21 +37,25 @@ func (r *notificationChannelResource) Metadata(_ context.Context, req resource.M
 
 func (r *notificationChannelResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "A Nominal notification channel (mail, Slack, Teams, Discord, webhook, PagerDuty).",
+		MarkdownDescription: "A Nominal notification channel (Mail, Slack, MicrosoftTeams, Discord, Webhook, or Pagerduty).",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"name": schema.StringAttribute{
 				Required: true,
 			},
 			"type": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: "Mail, Slack, MicrosoftTeams, Discord, Webhook, or Pagerduty",
+				MarkdownDescription: "Mail, Slack, MicrosoftTeams, Discord, Webhook, or Pagerduty.",
 			},
 		},
 		Blocks: map[string]schema.Block{
 			"config": schema.ListNestedBlock{
+				MarkdownDescription: "Channel settings as key/value pairs (`url`, `to`, `routing_key`, ...).",
 				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
 						"key":   schema.StringAttribute{Required: true},
@@ -83,21 +89,23 @@ func (r *notificationChannelResource) Create(ctx context.Context, req resource.C
 	}
 
 	var out struct {
-		CreateNotificationChannel map[string]any `json:"createNotificationChannel"`
+		CreateNotificationChannel gqlNotificationChannel `json:"createNotificationChannel"`
 	}
 
 	if err := r.client.Query(ctx, `
 		mutation ($input: CreateNotificationChannelInput!) {
-			createNotificationChannel(input: $input) { id }
+			createNotificationChannel(input: $input) {
+				id name type
+				config { key value }
+			}
 		}
 	`, map[string]any{"input": r.input(plan)}, &out); err != nil {
 		resp.Diagnostics.AddError("Create notification channel failed", err.Error())
 		return
 	}
 
-	id, _ := out.CreateNotificationChannel["id"].(string)
-	plan.ID = types.StringValue(id)
-	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	state := notificationChannelFromAPI(out.CreateNotificationChannel)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
 func (r *notificationChannelResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -107,28 +115,18 @@ func (r *notificationChannelResource) Read(ctx context.Context, req resource.Rea
 		return
 	}
 
-	var out struct {
-		NotificationChannel *struct {
-			ID   string `json:"id"`
-			Name string `json:"name"`
-		} `json:"notificationChannel"`
-	}
-
-	if err := r.client.Query(ctx, `
-		query ($id: ID!) {
-			notificationChannel(id: $id) { id name }
-		}
-	`, map[string]any{"id": state.ID.ValueString()}, &out); err != nil {
+	refreshed, err := r.readChannel(ctx, state.ID.ValueString())
+	if err != nil {
 		resp.Diagnostics.AddError("Read notification channel failed", err.Error())
 		return
 	}
 
-	if out.NotificationChannel == nil {
+	if refreshed == nil {
 		resp.State.RemoveResource(ctx)
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, refreshed)...)
 }
 
 func (r *notificationChannelResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -147,7 +145,18 @@ func (r *notificationChannelResource) Update(ctx context.Context, req resource.U
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	refreshed, err := r.readChannel(ctx, plan.ID.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Read notification channel failed", err.Error())
+		return
+	}
+
+	if refreshed == nil {
+		resp.State.RemoveResource(ctx)
+		return
+	}
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, refreshed)...)
 }
 
 func (r *notificationChannelResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -174,16 +183,42 @@ func (r *notificationChannelResource) input(model notificationChannelModel) map[
 		"type": model.Type.ValueString(),
 	}
 
-	if len(model.Config) > 0 {
-		config := make([]map[string]string, 0, len(model.Config))
-		for _, item := range model.Config {
-			config = append(config, map[string]string{
-				"key":   item.Key.ValueString(),
-				"value": item.Value.ValueString(),
-			})
-		}
+	if config := keyValuesInput(model.Config); config != nil {
 		input["config"] = config
 	}
 
 	return input
+}
+
+func (r *notificationChannelResource) readChannel(ctx context.Context, id string) (*notificationChannelModel, error) {
+	var out struct {
+		NotificationChannel *gqlNotificationChannel `json:"notificationChannel"`
+	}
+
+	if err := r.client.Query(ctx, `
+		query ($id: ID!) {
+			notificationChannel(id: $id) {
+				id name type
+				config { key value }
+			}
+		}
+	`, map[string]any{"id": id}, &out); err != nil {
+		return nil, err
+	}
+
+	if out.NotificationChannel == nil {
+		return nil, nil
+	}
+
+	state := notificationChannelFromAPI(*out.NotificationChannel)
+	return &state, nil
+}
+
+func notificationChannelFromAPI(channel gqlNotificationChannel) notificationChannelModel {
+	return notificationChannelModel{
+		ID:     types.StringValue(channel.ID),
+		Name:   types.StringValue(channel.Name),
+		Type:   types.StringValue(channel.Type),
+		Config: keyValuesModel(channel.Config),
+	}
 }
