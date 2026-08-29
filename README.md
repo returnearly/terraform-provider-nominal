@@ -4,9 +4,32 @@ Terraform provider for [Nominal](https://github.com/returnearly/nominal). Regist
 
 Talks to Nominal over **GraphQL only**. HTTP 200 with `errors[]` is a failed apply.
 
-Resources: `nominal_monitor`, `nominal_notification_channel`, `nominal_status_page`, `nominal_maintenance_window`.
+## Documentation
 
-Data sources: `nominal_probe`, `nominal_probes`, `nominal_monitors`.
+Registry-style docs live in [`docs/`](docs/). After a release they publish on the [Terraform Registry](https://registry.terraform.io/providers/returnearly/nominal).
+
+| Page | Description |
+| --- | --- |
+| [Provider](docs/index.md) | Endpoint, token, and overview |
+| [Authentication](docs/guides/authentication.md) | Sanctum tokens, `NOMINAL_TOKEN`, and Cloudflare Access headers |
+| [Monitor types](docs/guides/monitor-types.md) | Target and field matrix per type |
+| [Conditions](docs/guides/conditions.md) | Gatus-style expressions and defaults |
+| [Import](docs/guides/import.md) | Import existing resources by ID |
+| [`nominal_monitor`](docs/resources/monitor.md) | Uptime and heartbeat monitors |
+| [`nominal_notification_channel`](docs/resources/notification_channel.md) | Mail, Slack, Teams, Discord, webhook, PagerDuty |
+| [`nominal_status_page`](docs/resources/status_page.md) | Public status pages |
+| [`nominal_maintenance_window`](docs/resources/maintenance_window.md) | Alert-suppressing windows |
+| [`nominal_probe`](docs/data-sources/probe.md) | Look up one probe |
+| [`nominal_probes`](docs/data-sources/probes.md) | List probes |
+| [`nominal_monitors`](docs/data-sources/monitors.md) | List monitors by tag |
+
+Runnable snippets are under [`examples/`](examples/).
+
+## Requirements
+
+- [Terraform](https://developer.hashicorp.com/terraform/install) >= 1.0
+- A Nominal instance with GraphQL enabled
+- A Sanctum API token (`php artisan nominal:token <email> --name=terraform`)
 
 ## Example
 
@@ -22,6 +45,11 @@ terraform {
 provider "nominal" {
   endpoint = "https://nominal.example.com/graphql"
   token    = var.nominal_token
+
+  headers = {
+    CF-Access-Client-Id     = var.cf_access_client_id
+    CF-Access-Client-Secret = var.cf_access_client_secret
+  }
 }
 
 data "nominal_probe" "local" {
@@ -95,11 +123,14 @@ Heartbeat monitors expose `heartbeat_url`, `heartbeat_start_url`, `heartbeat_fin
 
 Maintenance window timestamps use Nominal's GraphQL DateTime format: `YYYY-MM-DD HH:MM:SS`.
 
-Build locally:
+## Development
 
 ```bash
 go build -o terraform-provider-nominal
+go test ./...
 ```
+
+For local Terraform, install the binary into `~/.terraform.d/plugins/registry.terraform.io/returnearly/nominal/<version>/<os>_<arch>/`.
 
 ## Releasing
 
@@ -116,4 +147,3 @@ One-time Registry setup (after the first GitHub Release exists):
 
 1. Add the public GPG key from the 1Password note **Terraform Registry GPG Key** at [Registry signing keys](https://registry.terraform.io/settings/gpg-keys).
 2. [Publish → Provider](https://registry.terraform.io/publish/provider) and select `returnearly/terraform-provider-nominal`.
-
