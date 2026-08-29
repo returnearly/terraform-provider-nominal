@@ -100,3 +100,20 @@ Build locally:
 ```bash
 go build -o terraform-provider-nominal
 ```
+
+## Releasing
+
+Push a SemVer tag on the commit you want published. GitHub Actions builds signed binaries and creates the GitHub Release. The Terraform Registry then ingresses [returnearly/nominal](https://registry.terraform.io/providers/returnearly/nominal).
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+Do not create the GitHub Release in the UI first. The workflow owns that.
+
+One-time Registry setup (after the first GitHub Release exists):
+
+1. Add the public GPG key from the 1Password note **Terraform Registry GPG Key** at [Registry signing keys](https://registry.terraform.io/settings/gpg-keys).
+2. [Publish → Provider](https://registry.terraform.io/publish/provider) and select `returnearly/terraform-provider-nominal`.
+
