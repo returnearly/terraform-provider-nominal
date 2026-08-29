@@ -14,6 +14,7 @@ import (
 type Client struct {
 	endpoint   string
 	token      string
+	headers    map[string]string
 	httpClient *http.Client
 }
 
@@ -36,6 +37,47 @@ func New(endpoint, token string) *Client {
 	}
 }
 
+// WithHeaders copies extra HTTP headers onto every GraphQL request.
+// Authorization, Content-Type, and Accept are reserved and ignored.
+func (c *Client) WithHeaders(headers map[string]string) *Client {
+	if len(headers) == 0 {
+		return c
+	}
+
+	c.headers = SanitizeHeaders(headers)
+	return c
+}
+
+func SanitizeHeaders(headers map[string]string) map[string]string {
+	if len(headers) == 0 {
+		return nil
+	}
+
+	out := make(map[string]string, len(headers))
+	for key, value := range headers {
+		if key == "" || ReservedHeader(key) {
+			continue
+		}
+
+		out[key] = value
+	}
+
+	if len(out) == 0 {
+		return nil
+	}
+
+	return out
+}
+
+func ReservedHeader(key string) bool {
+	switch strings.ToLower(key) {
+	case "authorization", "content-type", "accept":
+		return true
+	default:
+		return false
+	}
+}
+
 func (c *Client) Query(ctx context.Context, query string, variables map[string]any, out any) error {
 	payload, err := json.Marshal(map[string]any{
 		"query":     query,
@@ -48,6 +90,10 @@ func (c *Client) Query(ctx context.Context, query string, variables map[string]a
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.endpoint, bytes.NewReader(payload))
 	if err != nil {
 		return err
+	}
+
+	for key, value := range c.headers {
+		req.Header.Set(key, value)
 	}
 
 	req.Header.Set("Authorization", "Bearer "+c.token)
