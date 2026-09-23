@@ -12,7 +12,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -237,9 +236,9 @@ func (r *monitorResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			"badge_markdown":         computedString,
 			"uptime": schema.SingleNestedAttribute{
 				Computed:            true,
-				MarkdownDescription: "Rolling uptime percentages from check results.",
+				MarkdownDescription: "Rolling uptime percentages from check results. Unknown on create and on any monitor update, because the percentage can change between plan and apply.",
 				PlanModifiers: []planmodifier.Object{
-					objectplanmodifier.UseStateForUnknown(),
+					uptimePlanModifier{},
 				},
 				Attributes: map[string]schema.Attribute{
 					"one_hour":          schema.Float64Attribute{Computed: true},
@@ -501,6 +500,99 @@ func uptimeAttrTypes() map[string]attr.Type {
 		"seven_days":        types.Float64Type,
 		"thirty_days":       types.Float64Type,
 	}
+}
+
+// uptimePlanModifier keeps a refreshed uptime percentage when the monitor
+// configuration is unchanged, and marks it unknown when Terraform will apply
+// an update. The percentage is a live check result, so the value read after
+// apply will not match the number planned a moment earlier.
+type uptimePlanModifier struct{}
+
+func (m uptimePlanModifier) Description(context.Context) string {
+	return "Marks uptime unknown when the monitor is created or its configuration changes."
+}
+
+func (m uptimePlanModifier) MarkdownDescription(context.Context) string {
+	return "Marks uptime unknown when the monitor is created or its configuration changes."
+}
+
+func (m uptimePlanModifier) PlanModifyObject(ctx context.Context, req planmodifier.ObjectRequest, resp *planmodifier.ObjectResponse) {
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
+	if req.State.Raw.IsNull() {
+		resp.PlanValue = types.ObjectUnknown(uptimeAttrTypes())
+		return
+	}
+
+	var plan, state monitorModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if monitorConfigChanged(plan, state) {
+		resp.PlanValue = types.ObjectUnknown(uptimeAttrTypes())
+		return
+	}
+
+	resp.PlanValue = req.StateValue
+}
+
+// monitorConfigChanged reports whether an apply would send a new monitor
+// configuration. Unknown planned values are ignored so computed attributes
+// that have not been copied from state yet do not look like edits.
+func monitorConfigChanged(plan, state monitorModel) bool {
+	if attrChanged(plan.Name, state.Name) ||
+		attrChanged(plan.Description, state.Description) ||
+		attrChanged(plan.Tags, state.Tags) ||
+		attrChanged(plan.Group, state.Group) ||
+		attrChanged(plan.Type, state.Type) ||
+		attrChanged(plan.Enabled, state.Enabled) ||
+		attrChanged(plan.IntervalSeconds, state.IntervalSeconds) ||
+		attrChanged(plan.TimeoutSeconds, state.TimeoutSeconds) ||
+		attrChanged(plan.IPFamily, state.IPFamily) ||
+		attrChanged(plan.Target, state.Target) ||
+		attrChanged(plan.Method, state.Method) ||
+		attrChanged(plan.RequestBody, state.RequestBody) ||
+		attrChanged(plan.DNSQueryName, state.DNSQueryName) ||
+		attrChanged(plan.DNSQueryType, state.DNSQueryType) ||
+		attrChanged(plan.FollowRedirects, state.FollowRedirects) ||
+		attrChanged(plan.VerifyTLS, state.VerifyTLS) ||
+		attrChanged(plan.ProxyURL, state.ProxyURL) ||
+		attrChanged(plan.RetentionDays, state.RetentionDays) ||
+		attrChanged(plan.Conditions, state.Conditions) ||
+		attrChanged(plan.ProbeIDs, state.ProbeIDs) ||
+		attrChanged(plan.ChannelIDs, state.ChannelIDs) ||
+		requestHeadersChanged(plan.RequestHeaders, state.RequestHeaders) {
+		return true
+	}
+
+	return false
+}
+
+func attrChanged(plan, state attr.Value) bool {
+	if plan == nil || plan.IsUnknown() {
+		return false
+	}
+
+	return !plan.Equal(state)
+}
+
+func requestHeadersChanged(plan, state []keyValueModel) bool {
+	if len(plan) != len(state) {
+		return true
+	}
+
+	for i := range plan {
+		if attrChanged(plan[i].Key, state[i].Key) || attrChanged(plan[i].Value, state[i].Value) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // uptimeValue stores rolling uptime as types.Object so Terraform can keep the
