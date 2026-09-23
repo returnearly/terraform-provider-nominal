@@ -159,7 +159,7 @@ Read-Only:
 - Create uses `createMonitor`, then `syncMonitorChannels` when `channel_ids` is set, then a `monitor(id:)` read.
 - Update uses `updateMonitor` the same way. A missing monitor on refresh is removed from state.
 - Heartbeat URLs and badge URLs are computed by Nominal and stored with `UseStateForUnknown` so they do not churn every plan.
-- `uptime` is computed from check results and may be null for a brand-new monitor.
+- `uptime` is computed from check results and may be null for a brand-new monitor. It is marked unknown on create and on any configuration change, because the percentage can move between plan and apply. An unchanged monitor keeps the refreshed value so the plan stays a no-op.
 
 ## Import
 

@@ -152,6 +152,45 @@ func TestMaintenanceWindowInput(t *testing.T) {
 	}
 }
 
+func TestMonitorConfigChangedIgnoresUptimeAndUnknownComputedValues(t *testing.T) {
+	t.Parallel()
+
+	base := monitorModel{
+		Name:           types.StringValue("API"),
+		Type:           types.StringValue("Http"),
+		Method:         types.StringValue("GET"),
+		Tags:           types.ListNull(types.StringType),
+		ProbeIDs:       types.ListNull(types.StringType),
+		ChannelIDs:     types.ListNull(types.StringType),
+		Conditions:     stringListValue([]string{"[STATUS] == 200"}),
+		RequestHeaders: nil,
+		Uptime:         types.ObjectNull(uptimeAttrTypes()),
+	}
+	same := base
+	same.Uptime = uptimeValue(gqlUptime{ThirtyDays: floatPtr(99.8893)})
+	same.Method = types.StringUnknown()
+
+	if monitorConfigChanged(same, base) {
+		t.Fatal("uptime drift and an unresolved method must not count as a configuration change")
+	}
+
+	edited := base
+	edited.Conditions = stringListValue([]string{"[STATUS] == 401"})
+	if !monitorConfigChanged(edited, base) {
+		t.Fatal("a conditions edit must count as a configuration change")
+	}
+
+	method := base
+	method.Method = types.StringValue("Get")
+	if !monitorConfigChanged(method, base) {
+		t.Fatal("a method edit must count as a configuration change")
+	}
+}
+
+func floatPtr(value float64) *float64 {
+	return &value
+}
+
 func TestCanonicalHTTPMethodUppercasesGraphQLEnum(t *testing.T) {
 	t.Parallel()
 
