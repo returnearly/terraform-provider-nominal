@@ -3,7 +3,9 @@ package provider
 import (
 	"context"
 	"fmt"
+	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -32,13 +34,6 @@ type monitorResource struct {
 type keyValueModel struct {
 	Key   types.String `tfsdk:"key"`
 	Value types.String `tfsdk:"value"`
-}
-
-type uptimeModel struct {
-	OneHour         types.Float64 `tfsdk:"one_hour"`
-	TwentyFourHours types.Float64 `tfsdk:"twenty_four_hours"`
-	SevenDays       types.Float64 `tfsdk:"seven_days"`
-	ThirtyDays      types.Float64 `tfsdk:"thirty_days"`
 }
 
 type monitorModel struct {
@@ -78,7 +73,7 @@ type monitorModel struct {
 	LatencyBadgeURL     types.String    `tfsdk:"latency_badge_url"`
 	LatencyBadgeJSONURL types.String    `tfsdk:"latency_badge_json_url"`
 	BadgeMarkdown       types.String    `tfsdk:"badge_markdown"`
-	Uptime              *uptimeModel    `tfsdk:"uptime"`
+	Uptime              types.Object    `tfsdk:"uptime"`
 }
 
 func (r *monitorResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -499,6 +494,37 @@ func (r *monitorResource) readMonitor(ctx context.Context, id string, previous m
 	return &state, nil
 }
 
+func uptimeAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"one_hour":          types.Float64Type,
+		"twenty_four_hours": types.Float64Type,
+		"seven_days":        types.Float64Type,
+		"thirty_days":       types.Float64Type,
+	}
+}
+
+// uptimeValue stores rolling uptime as types.Object so Terraform can keep the
+// attribute unknown during create. A Go struct cannot represent that state.
+func uptimeValue(uptime gqlUptime) types.Object {
+	return types.ObjectValueMust(uptimeAttrTypes(), map[string]attr.Value{
+		"one_hour":          floatOrNull(uptime.OneHour),
+		"twenty_four_hours": floatOrNull(uptime.TwentyFourHours),
+		"seven_days":        floatOrNull(uptime.SevenDays),
+		"thirty_days":       floatOrNull(uptime.ThirtyDays),
+	})
+}
+
+// canonicalHTTPMethod uppercases GraphQL enum values such as "Get" so they
+// match the "GET" configured in Terraform.
+func canonicalHTTPMethod(method *string) types.String {
+	value := stringOrNull(method)
+	if value.IsNull() {
+		return value
+	}
+
+	return types.StringValue(strings.ToUpper(value.ValueString()))
+}
+
 func monitorFromAPI(monitor gqlMonitor, previous monitorModel) monitorModel {
 	state := monitorModel{
 		ID:                  types.StringValue(monitor.ID),
@@ -512,7 +538,7 @@ func monitorFromAPI(monitor gqlMonitor, previous monitorModel) monitorModel {
 		TimeoutSeconds:      types.Int64Value(monitor.TimeoutSeconds),
 		IPFamily:            types.StringValue(monitor.IPFamily),
 		Target:              types.StringValue(monitor.Target),
-		Method:              stringOrNull(monitor.Method),
+		Method:              canonicalHTTPMethod(monitor.Method),
 		RequestHeaders:      keyValuesModel(monitor.RequestHeaders),
 		RequestBody:         stringOrNull(monitor.RequestBody),
 		DNSQueryName:        stringOrNull(monitor.DNSQueryName),
@@ -537,12 +563,7 @@ func monitorFromAPI(monitor gqlMonitor, previous monitorModel) monitorModel {
 		LatencyBadgeURL:     stringValueOrNull(monitor.LatencyBadgeURL),
 		LatencyBadgeJSONURL: stringValueOrNull(monitor.LatencyBadgeJSONURL),
 		BadgeMarkdown:       stringValueOrNull(monitor.BadgeMarkdown),
-		Uptime: &uptimeModel{
-			OneHour:         floatOrNull(monitor.Uptime.OneHour),
-			TwentyFourHours: floatOrNull(monitor.Uptime.TwentyFourHours),
-			SevenDays:       floatOrNull(monitor.Uptime.SevenDays),
-			ThirtyDays:      floatOrNull(monitor.Uptime.ThirtyDays),
-		},
+		Uptime:              uptimeValue(monitor.Uptime),
 	}
 
 	if previous.ChannelIDs.IsNull() && len(monitor.NotificationChannels) == 0 {

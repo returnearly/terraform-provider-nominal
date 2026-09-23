@@ -152,6 +152,20 @@ func TestMaintenanceWindowInput(t *testing.T) {
 	}
 }
 
+func TestCanonicalHTTPMethodUppercasesGraphQLEnum(t *testing.T) {
+	t.Parallel()
+
+	got := "Get"
+	value := canonicalHTTPMethod(&got)
+	if value.ValueString() != "GET" {
+		t.Fatalf("method: %s", value.ValueString())
+	}
+
+	if !canonicalHTTPMethod(nil).IsNull() {
+		t.Fatal("nil method should stay null")
+	}
+}
+
 func TestMonitorSelectionCoversNewAPIFields(t *testing.T) {
 	t.Parallel()
 
