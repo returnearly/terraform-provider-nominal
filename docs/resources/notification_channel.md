@@ -8,7 +8,7 @@ description: |-
 
 An alert destination. Attach channels to monitors with [`nominal_monitor.channel_ids`](monitor.md).
 
-`config` is a list of key/value pairs. Nominal validates and normalizes keys per `type`. Unknown keys are dropped. Values are sensitive in Terraform state.
+`config` is a list of key/value pairs. The provider sends them as the typed GraphQL input for `type` (`pagerduty { routingKey }`, `slack { webhookUrl }`, and so on). Nominal no longer has a `config` field on `NotificationChannel`. Unknown keys are dropped. Values are sensitive in Terraform state.
 
 ## Example Usage
 

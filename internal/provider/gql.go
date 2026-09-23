@@ -112,11 +112,39 @@ type gqlProbe struct {
 	IsDefault bool   `json:"is_default"`
 }
 
+type gqlMailChannelConfig struct {
+	To          *string `json:"to"`
+	Host        *string `json:"host"`
+	Port        *int    `json:"port"`
+	Username    *string `json:"username"`
+	Password    *string `json:"password"`
+	Encryption  *string `json:"encryption"`
+	FromAddress *string `json:"fromAddress"`
+	FromName    *string `json:"fromName"`
+}
+
+type gqlWebhookURLConfig struct {
+	WebhookURL *string `json:"webhookUrl"`
+}
+
+type gqlURLConfig struct {
+	URL *string `json:"url"`
+}
+
+type gqlPagerdutyConfig struct {
+	RoutingKey *string `json:"routingKey"`
+}
+
 type gqlNotificationChannel struct {
-	ID     string        `json:"id"`
-	Name   string        `json:"name"`
-	Type   string        `json:"type"`
-	Config []gqlKeyValue `json:"config"`
+	ID             string                `json:"id"`
+	Name           string                `json:"name"`
+	Type           string                `json:"type"`
+	Mail           *gqlMailChannelConfig `json:"mail"`
+	Slack          *gqlWebhookURLConfig  `json:"slack"`
+	MicrosoftTeams *gqlWebhookURLConfig  `json:"microsoftTeams"`
+	Discord        *gqlWebhookURLConfig  `json:"discord"`
+	Webhook        *gqlURLConfig         `json:"webhook"`
+	Pagerduty      *gqlPagerdutyConfig   `json:"pagerduty"`
 }
 
 type gqlStatusPageListing struct {
