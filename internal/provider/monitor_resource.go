@@ -235,17 +235,17 @@ func (r *monitorResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Default:             booldefault.StaticBool(false),
 				MarkdownDescription: "When true, `/api/heartbeat/{heartbeat_slug}` accepts pings in addition to the secret token URL. Off by default because slugs are guessable.",
 			},
-			"heartbeat_url":          computedString,
-			"heartbeat_start_url":    computedString,
-			"heartbeat_finish_url":   computedString,
-			"heartbeat_error_url":    computedString,
+			"heartbeat_url":          heartbeatURLAttribute(),
+			"heartbeat_start_url":    heartbeatURLAttribute(),
+			"heartbeat_finish_url":   heartbeatURLAttribute(),
+			"heartbeat_error_url":    heartbeatURLAttribute(),
 			"status_badge_url":       computedString,
 			"status_badge_json_url":  computedString,
 			"uptime_badge_url":       computedString,
 			"uptime_badge_json_url":  computedString,
 			"latency_badge_url":      computedString,
 			"latency_badge_json_url": computedString,
-			"badge_markdown":         computedString,
+			"badge_markdown":         badgeMarkdownAttribute(),
 			"uptime": schema.SingleNestedAttribute{
 				Computed:            true,
 				MarkdownDescription: "Rolling uptime percentages from check results. Unknown on create and on any monitor update, because the percentage can change between plan and apply.",
@@ -521,6 +521,72 @@ func uptimeAttrTypes() map[string]attr.Type {
 		"seven_days":        types.Float64Type,
 		"thirty_days":       types.Float64Type,
 	}
+}
+
+func heartbeatURLAttribute() schema.StringAttribute {
+	return schema.StringAttribute{
+		Computed: true,
+		PlanModifiers: []planmodifier.String{
+			keepComputedString{changed: heartbeatURLChanged},
+		},
+	}
+}
+
+func badgeMarkdownAttribute() schema.StringAttribute {
+	return schema.StringAttribute{
+		Computed: true,
+		PlanModifiers: []planmodifier.String{
+			keepComputedString{changed: badgeMarkdownChanged},
+		},
+	}
+}
+
+// keepComputedString copies the prior state into an unknown plan value unless
+// changed reports that apply will produce a new value. Copying state after
+// the slug or name changes makes Terraform reject the API response.
+type keepComputedString struct {
+	changed func(plan, state monitorModel) bool
+}
+
+func (m keepComputedString) Description(context.Context) string {
+	return "Keeps the prior value unless the configuration that produces it changes"
+}
+
+func (m keepComputedString) MarkdownDescription(context.Context) string {
+	return "Keeps the prior value unless the configuration that produces it changes"
+}
+
+func (m keepComputedString) PlanModifyString(ctx context.Context, req planmodifier.StringRequest, resp *planmodifier.StringResponse) {
+	if req.PlanValue.IsNull() || !req.PlanValue.IsUnknown() {
+		return
+	}
+
+	if req.State.Raw.IsNull() || req.StateValue.IsNull() || req.StateValue.IsUnknown() {
+		return
+	}
+
+	var plan, state monitorModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if m.changed(plan, state) {
+		return
+	}
+
+	resp.PlanValue = req.StateValue
+}
+
+func heartbeatURLChanged(plan, state monitorModel) bool {
+	return attrChanged(plan.Type, state.Type) ||
+		attrChanged(plan.HeartbeatSlug, state.HeartbeatSlug) ||
+		attrChanged(plan.HeartbeatSlugEnabled, state.HeartbeatSlugEnabled)
+}
+
+func badgeMarkdownChanged(plan, state monitorModel) bool {
+	return attrChanged(plan.Name, state.Name)
 }
 
 // uptimePlanModifier keeps a refreshed uptime percentage when the monitor
