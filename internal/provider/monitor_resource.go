@@ -36,43 +36,45 @@ type keyValueModel struct {
 }
 
 type monitorModel struct {
-	ID                  types.String    `tfsdk:"id"`
-	Name                types.String    `tfsdk:"name"`
-	Description         types.String    `tfsdk:"description"`
-	Tags                types.List      `tfsdk:"tags"`
-	Group               types.String    `tfsdk:"group"`
-	Type                types.String    `tfsdk:"type"`
-	Enabled             types.Bool      `tfsdk:"enabled"`
-	IntervalSeconds     types.Int64     `tfsdk:"interval_seconds"`
-	TimeoutSeconds      types.Int64     `tfsdk:"timeout_seconds"`
-	IPFamily            types.String    `tfsdk:"ip_family"`
-	Target              types.String    `tfsdk:"target"`
-	Method              types.String    `tfsdk:"method"`
-	RequestHeaders      []keyValueModel `tfsdk:"request_headers"`
-	RequestBody         types.String    `tfsdk:"request_body"`
-	DNSQueryName        types.String    `tfsdk:"dns_query_name"`
-	DNSQueryType        types.String    `tfsdk:"dns_query_type"`
-	FollowRedirects     types.Bool      `tfsdk:"follow_redirects"`
-	VerifyTLS           types.Bool      `tfsdk:"verify_tls"`
-	ProxyURL            types.String    `tfsdk:"proxy_url"`
-	RetentionDays       types.Int64     `tfsdk:"retention_days"`
-	Conditions          types.List      `tfsdk:"conditions"`
-	ProbeIDs            types.List      `tfsdk:"probe_ids"`
-	ChannelIDs          types.List      `tfsdk:"channel_ids"`
-	Status              types.String    `tfsdk:"status"`
-	HeartbeatToken      types.String    `tfsdk:"heartbeat_token"`
-	HeartbeatURL        types.String    `tfsdk:"heartbeat_url"`
-	HeartbeatStartURL   types.String    `tfsdk:"heartbeat_start_url"`
-	HeartbeatFinishURL  types.String    `tfsdk:"heartbeat_finish_url"`
-	HeartbeatErrorURL   types.String    `tfsdk:"heartbeat_error_url"`
-	StatusBadgeURL      types.String    `tfsdk:"status_badge_url"`
-	StatusBadgeJSONURL  types.String    `tfsdk:"status_badge_json_url"`
-	UptimeBadgeURL      types.String    `tfsdk:"uptime_badge_url"`
-	UptimeBadgeJSONURL  types.String    `tfsdk:"uptime_badge_json_url"`
-	LatencyBadgeURL     types.String    `tfsdk:"latency_badge_url"`
-	LatencyBadgeJSONURL types.String    `tfsdk:"latency_badge_json_url"`
-	BadgeMarkdown       types.String    `tfsdk:"badge_markdown"`
-	Uptime              types.Object    `tfsdk:"uptime"`
+	ID                   types.String    `tfsdk:"id"`
+	Name                 types.String    `tfsdk:"name"`
+	Description          types.String    `tfsdk:"description"`
+	Tags                 types.List      `tfsdk:"tags"`
+	Group                types.String    `tfsdk:"group"`
+	Type                 types.String    `tfsdk:"type"`
+	Enabled              types.Bool      `tfsdk:"enabled"`
+	IntervalSeconds      types.Int64     `tfsdk:"interval_seconds"`
+	TimeoutSeconds       types.Int64     `tfsdk:"timeout_seconds"`
+	IPFamily             types.String    `tfsdk:"ip_family"`
+	Target               types.String    `tfsdk:"target"`
+	Method               types.String    `tfsdk:"method"`
+	RequestHeaders       []keyValueModel `tfsdk:"request_headers"`
+	RequestBody          types.String    `tfsdk:"request_body"`
+	DNSQueryName         types.String    `tfsdk:"dns_query_name"`
+	DNSQueryType         types.String    `tfsdk:"dns_query_type"`
+	FollowRedirects      types.Bool      `tfsdk:"follow_redirects"`
+	VerifyTLS            types.Bool      `tfsdk:"verify_tls"`
+	ProxyURL             types.String    `tfsdk:"proxy_url"`
+	RetentionDays        types.Int64     `tfsdk:"retention_days"`
+	Conditions           types.List      `tfsdk:"conditions"`
+	ProbeIDs             types.List      `tfsdk:"probe_ids"`
+	ChannelIDs           types.List      `tfsdk:"channel_ids"`
+	Status               types.String    `tfsdk:"status"`
+	HeartbeatToken       types.String    `tfsdk:"heartbeat_token"`
+	HeartbeatSlug        types.String    `tfsdk:"heartbeat_slug"`
+	HeartbeatSlugEnabled types.Bool      `tfsdk:"heartbeat_slug_enabled"`
+	HeartbeatURL         types.String    `tfsdk:"heartbeat_url"`
+	HeartbeatStartURL    types.String    `tfsdk:"heartbeat_start_url"`
+	HeartbeatFinishURL   types.String    `tfsdk:"heartbeat_finish_url"`
+	HeartbeatErrorURL    types.String    `tfsdk:"heartbeat_error_url"`
+	StatusBadgeURL       types.String    `tfsdk:"status_badge_url"`
+	StatusBadgeJSONURL   types.String    `tfsdk:"status_badge_json_url"`
+	UptimeBadgeURL       types.String    `tfsdk:"uptime_badge_url"`
+	UptimeBadgeJSONURL   types.String    `tfsdk:"uptime_badge_json_url"`
+	LatencyBadgeURL      types.String    `tfsdk:"latency_badge_url"`
+	LatencyBadgeJSONURL  types.String    `tfsdk:"latency_badge_json_url"`
+	BadgeMarkdown        types.String    `tfsdk:"badge_markdown"`
+	Uptime               types.Object    `tfsdk:"uptime"`
 }
 
 func (r *monitorResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -222,6 +224,16 @@ func (r *monitorResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
+			},
+			"heartbeat_slug": schema.StringAttribute{
+				Optional:            true,
+				MarkdownDescription: "Public heartbeat path segment, such as `nightly-backup`. Stored even while slug URLs are off. Letters, numbers, and hyphens. Must be unique.",
+			},
+			"heartbeat_slug_enabled": schema.BoolAttribute{
+				Optional:            true,
+				Computed:            true,
+				Default:             booldefault.StaticBool(false),
+				MarkdownDescription: "When true, `/api/heartbeat/{heartbeat_slug}` accepts pings in addition to the secret token URL. Off by default because slugs are guessable.",
 			},
 			"heartbeat_url":          computedString,
 			"heartbeat_start_url":    computedString,
@@ -439,6 +451,15 @@ func (r *monitorResource) input(ctx context.Context, model monitorModel) map[str
 		input["proxyUrl"] = nil
 	}
 
+	input["heartbeatSlugEnabled"] = model.HeartbeatSlugEnabled.ValueBool()
+	if !model.HeartbeatSlug.IsUnknown() {
+		if slug, ok := optionalString(model.HeartbeatSlug); ok && slug != "" {
+			input["heartbeatSlug"] = slug
+		} else {
+			input["heartbeatSlug"] = nil
+		}
+	}
+
 	headers := keyValuesInput(model.RequestHeaders)
 	if headers == nil {
 		headers = []map[string]string{}
@@ -562,6 +583,8 @@ func monitorConfigChanged(plan, state monitorModel) bool {
 		attrChanged(plan.FollowRedirects, state.FollowRedirects) ||
 		attrChanged(plan.VerifyTLS, state.VerifyTLS) ||
 		attrChanged(plan.ProxyURL, state.ProxyURL) ||
+		attrChanged(plan.HeartbeatSlug, state.HeartbeatSlug) ||
+		attrChanged(plan.HeartbeatSlugEnabled, state.HeartbeatSlugEnabled) ||
 		attrChanged(plan.RetentionDays, state.RetentionDays) ||
 		attrChanged(plan.Conditions, state.Conditions) ||
 		attrChanged(plan.ProbeIDs, state.ProbeIDs) ||
@@ -619,43 +642,45 @@ func canonicalHTTPMethod(method *string) types.String {
 
 func monitorFromAPI(monitor gqlMonitor, previous monitorModel) monitorModel {
 	state := monitorModel{
-		ID:                  types.StringValue(monitor.ID),
-		Name:                types.StringValue(monitor.Name),
-		Description:         stringOrNull(monitor.Description),
-		Tags:                stringListValue(monitor.Tags),
-		Group:               previous.Group,
-		Type:                types.StringValue(monitor.Type),
-		Enabled:             types.BoolValue(monitor.Enabled),
-		IntervalSeconds:     types.Int64Value(monitor.IntervalSeconds),
-		TimeoutSeconds:      types.Int64Value(monitor.TimeoutSeconds),
-		IPFamily:            types.StringValue(monitor.IPFamily),
-		Target:              types.StringValue(monitor.Target),
-		Method:              canonicalHTTPMethod(monitor.Method),
-		RequestHeaders:      keyValuesModel(monitor.RequestHeaders),
-		RequestBody:         stringOrNull(monitor.RequestBody),
-		DNSQueryName:        stringOrNull(monitor.DNSQueryName),
-		DNSQueryType:        stringOrNull(monitor.DNSQueryType),
-		FollowRedirects:     types.BoolValue(monitor.FollowRedirects),
-		VerifyTLS:           types.BoolValue(monitor.VerifyTLS),
-		ProxyURL:            stringOrNull(monitor.ProxyURL),
-		RetentionDays:       types.Int64Value(monitor.RetentionDays),
-		Conditions:          stringListValue(expressionsFromConditions(monitor.Conditions)),
-		ProbeIDs:            stringListValue(idsFromNodes(monitor.Probes)),
-		ChannelIDs:          stringListValue(idsFromNodes(monitor.NotificationChannels)),
-		Status:              types.StringValue(monitor.Status),
-		HeartbeatToken:      stringOrNull(monitor.HeartbeatToken),
-		HeartbeatURL:        stringOrNull(monitor.HeartbeatURL),
-		HeartbeatStartURL:   stringOrNull(monitor.HeartbeatStartURL),
-		HeartbeatFinishURL:  stringOrNull(monitor.HeartbeatFinishURL),
-		HeartbeatErrorURL:   stringOrNull(monitor.HeartbeatErrorURL),
-		StatusBadgeURL:      stringValueOrNull(monitor.StatusBadgeURL),
-		StatusBadgeJSONURL:  stringValueOrNull(monitor.StatusBadgeJSONURL),
-		UptimeBadgeURL:      stringValueOrNull(monitor.UptimeBadgeURL),
-		UptimeBadgeJSONURL:  stringValueOrNull(monitor.UptimeBadgeJSONURL),
-		LatencyBadgeURL:     stringValueOrNull(monitor.LatencyBadgeURL),
-		LatencyBadgeJSONURL: stringValueOrNull(monitor.LatencyBadgeJSONURL),
-		BadgeMarkdown:       stringValueOrNull(monitor.BadgeMarkdown),
-		Uptime:              uptimeValue(monitor.Uptime),
+		ID:                   types.StringValue(monitor.ID),
+		Name:                 types.StringValue(monitor.Name),
+		Description:          stringOrNull(monitor.Description),
+		Tags:                 stringListValue(monitor.Tags),
+		Group:                previous.Group,
+		Type:                 types.StringValue(monitor.Type),
+		Enabled:              types.BoolValue(monitor.Enabled),
+		IntervalSeconds:      types.Int64Value(monitor.IntervalSeconds),
+		TimeoutSeconds:       types.Int64Value(monitor.TimeoutSeconds),
+		IPFamily:             types.StringValue(monitor.IPFamily),
+		Target:               types.StringValue(monitor.Target),
+		Method:               canonicalHTTPMethod(monitor.Method),
+		RequestHeaders:       keyValuesModel(monitor.RequestHeaders),
+		RequestBody:          stringOrNull(monitor.RequestBody),
+		DNSQueryName:         stringOrNull(monitor.DNSQueryName),
+		DNSQueryType:         stringOrNull(monitor.DNSQueryType),
+		FollowRedirects:      types.BoolValue(monitor.FollowRedirects),
+		VerifyTLS:            types.BoolValue(monitor.VerifyTLS),
+		ProxyURL:             stringOrNull(monitor.ProxyURL),
+		RetentionDays:        types.Int64Value(monitor.RetentionDays),
+		Conditions:           stringListValue(expressionsFromConditions(monitor.Conditions)),
+		ProbeIDs:             stringListValue(idsFromNodes(monitor.Probes)),
+		ChannelIDs:           stringListValue(idsFromNodes(monitor.NotificationChannels)),
+		Status:               types.StringValue(monitor.Status),
+		HeartbeatToken:       stringOrNull(monitor.HeartbeatToken),
+		HeartbeatSlug:        stringOrNull(monitor.HeartbeatSlug),
+		HeartbeatSlugEnabled: types.BoolValue(monitor.HeartbeatSlugEnabled),
+		HeartbeatURL:         stringOrNull(monitor.HeartbeatURL),
+		HeartbeatStartURL:    stringOrNull(monitor.HeartbeatStartURL),
+		HeartbeatFinishURL:   stringOrNull(monitor.HeartbeatFinishURL),
+		HeartbeatErrorURL:    stringOrNull(monitor.HeartbeatErrorURL),
+		StatusBadgeURL:       stringValueOrNull(monitor.StatusBadgeURL),
+		StatusBadgeJSONURL:   stringValueOrNull(monitor.StatusBadgeJSONURL),
+		UptimeBadgeURL:       stringValueOrNull(monitor.UptimeBadgeURL),
+		UptimeBadgeJSONURL:   stringValueOrNull(monitor.UptimeBadgeJSONURL),
+		LatencyBadgeURL:      stringValueOrNull(monitor.LatencyBadgeURL),
+		LatencyBadgeJSONURL:  stringValueOrNull(monitor.LatencyBadgeJSONURL),
+		BadgeMarkdown:        stringValueOrNull(monitor.BadgeMarkdown),
+		Uptime:               uptimeValue(monitor.Uptime),
 	}
 
 	if previous.ChannelIDs.IsNull() && len(monitor.NotificationChannels) == 0 {

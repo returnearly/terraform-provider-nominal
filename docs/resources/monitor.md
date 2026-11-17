@@ -67,9 +67,11 @@ resource "nominal_monitor" "resolver" {
 
 ```terraform
 resource "nominal_monitor" "backup" {
-  name   = "Nightly backup"
-  type   = "Heartbeat"
-  target = "backup-job"
+  name                   = "Nightly backup"
+  type                   = "Heartbeat"
+  target                 = "backup-job"
+  heartbeat_slug_enabled = true
+  heartbeat_slug         = "nightly-backup"
 }
 
 output "backup_heartbeat_url" {
@@ -108,6 +110,8 @@ resource "nominal_monitor" "db" {
 - `enabled` (Boolean) Whether the monitor is scheduled. Defaults to `true`.
 - `follow_redirects` (Boolean) Follow HTTP redirects. Defaults to `true`. Applies to `Http` and `GraphQL`.
 - `group` (String, Deprecated) Removed from the Nominal API. Set `tags` instead. If `tags` is omitted, `group` is sent as a single tag so older configs still apply. `group` is never sent as its own GraphQL field.
+- `heartbeat_slug` (String) Public path segment for a heartbeat, such as `nightly-backup`. Letters, numbers, and hyphens. Unique across monitors. Omitting it sends null and clears the stored slug.
+- `heartbeat_slug_enabled` (Boolean) Accept pings at `/api/heartbeat/{heartbeat_slug}` as well as the secret token URL. Defaults to `false`. Slugs are guessable, so leave this off unless you want a stable URL.
 - `interval_seconds` (Number) Check interval, or expected heartbeat period. Defaults to `60`. Monitors with a `[DOMAIN_EXPIRATION]` condition must use at least `300`.
 - `ip_family` (String) `Ipv4`, `Ipv6`, or `Any`. Defaults to `Any`.
 - `method` (String) HTTP method: `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, or `HEAD`. GraphQL monitors default to `POST`.
@@ -128,7 +132,7 @@ resource "nominal_monitor" "db" {
 - `heartbeat_finish_url` (String) URL to signal a successful heartbeat job.
 - `heartbeat_start_url` (String) URL to signal that a heartbeat job started.
 - `heartbeat_token` (String, Sensitive) Secret token embedded in heartbeat URLs.
-- `heartbeat_url` (String) Default heartbeat finish URL (`/api/heartbeat/{token}`).
+- `heartbeat_url` (String) Heartbeat finish URL. Uses `/api/heartbeat/{token}` until slug URLs are enabled, then `/api/heartbeat/{heartbeat_slug}`. The token URL keeps accepting pings either way.
 - `latency_badge_json_url` (String) JSON latency badge URL.
 - `latency_badge_url` (String) SVG latency badge URL.
 - `status` (String) Effective status: `Pending`, `Up`, `Down`, `Paused`, or `Maintenance`.

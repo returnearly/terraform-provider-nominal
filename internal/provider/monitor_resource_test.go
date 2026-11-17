@@ -96,6 +96,10 @@ func TestMonitorInputSendsGroupAsTagWhenTagsOmitted(t *testing.T) {
 	if input["dnsQueryName"] != "example.com" || input["dnsQueryType"] != "A" {
 		t.Fatalf("dns fields: %#v %#v", input["dnsQueryName"], input["dnsQueryType"])
 	}
+
+	if input["heartbeatSlugEnabled"] != false || input["heartbeatSlug"] != nil {
+		t.Fatalf("heartbeat slug defaults: %#v %#v", input["heartbeatSlugEnabled"], input["heartbeatSlug"])
+	}
 }
 
 func TestStatusPageInputIncludesMonitors(t *testing.T) {
@@ -214,6 +218,8 @@ func TestMonitorSelectionCoversNewAPIFields(t *testing.T) {
 		"dns_query_name",
 		"dns_query_type",
 		"proxy_url",
+		"heartbeat_slug",
+		"heartbeat_slug_enabled",
 		"heartbeatUrl",
 		"heartbeatStartUrl",
 		"heartbeatFinishUrl",
