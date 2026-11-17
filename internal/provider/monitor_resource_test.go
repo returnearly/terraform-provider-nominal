@@ -195,6 +195,41 @@ func floatPtr(value float64) *float64 {
 	return &value
 }
 
+func TestComputedValuesStayKnownUntilTheirInputsChange(t *testing.T) {
+	t.Parallel()
+
+	base := monitorModel{
+		Name:                 types.StringValue("production-payments-api-webhooks"),
+		Type:                 types.StringValue("Heartbeat"),
+		HeartbeatSlug:        types.StringValue("production-payments-api-webhooks"),
+		HeartbeatSlugEnabled: types.BoolValue(false),
+	}
+
+	renamed := base
+	renamed.Name = types.StringValue("GrailPay API - PRODUCTION - HEARTBEAT [webhooks]")
+	if heartbeatURLChanged(renamed, base) {
+		t.Fatal("renaming a monitor must not replan heartbeat URLs")
+	}
+	if !badgeMarkdownChanged(renamed, base) {
+		t.Fatal("renaming a monitor must replan badge markdown")
+	}
+
+	enabled := base
+	enabled.HeartbeatSlugEnabled = types.BoolValue(true)
+	if !heartbeatURLChanged(enabled, base) {
+		t.Fatal("enabling the slug URL must replan heartbeat URLs")
+	}
+	if badgeMarkdownChanged(enabled, base) {
+		t.Fatal("enabling the slug URL must not replan badge markdown")
+	}
+
+	slug := base
+	slug.HeartbeatSlug = types.StringValue("production-payments-api-webhooks-inbound")
+	if !heartbeatURLChanged(slug, base) {
+		t.Fatal("changing the slug must replan heartbeat URLs")
+	}
+}
+
 func TestCanonicalHTTPMethodUppercasesGraphQLEnum(t *testing.T) {
 	t.Parallel()
 

@@ -127,12 +127,12 @@ resource "nominal_monitor" "db" {
 ### Read-Only
 
 - `id` (String) Nominal monitor ID.
-- `badge_markdown` (String) Markdown snippet that embeds the status badge.
-- `heartbeat_error_url` (String) URL to signal a failed heartbeat job.
-- `heartbeat_finish_url` (String) URL to signal a successful heartbeat job.
-- `heartbeat_start_url` (String) URL to signal that a heartbeat job started.
+- `badge_markdown` (String) Markdown snippet that embeds the status badge. Known after apply when `name` changes, because the alt text includes the monitor name.
+- `heartbeat_error_url` (String) URL to signal a failed heartbeat job. Known after apply when `heartbeat_slug`, `heartbeat_slug_enabled`, or `type` changes.
+- `heartbeat_finish_url` (String) URL to signal a successful heartbeat job. Known after apply when `heartbeat_slug`, `heartbeat_slug_enabled`, or `type` changes.
+- `heartbeat_start_url` (String) URL to signal that a heartbeat job started. Known after apply when `heartbeat_slug`, `heartbeat_slug_enabled`, or `type` changes.
 - `heartbeat_token` (String, Sensitive) Secret token embedded in heartbeat URLs.
-- `heartbeat_url` (String) Heartbeat finish URL. Uses `/api/heartbeat/{token}` until slug URLs are enabled, then `/api/heartbeat/{heartbeat_slug}`. The token URL keeps accepting pings either way.
+- `heartbeat_url` (String) Heartbeat ping URL. Uses `/api/heartbeat/{token}` until slug URLs are enabled, then `/api/heartbeat/{heartbeat_slug}`. The token URL keeps accepting pings either way. Known after apply when `heartbeat_slug`, `heartbeat_slug_enabled`, or `type` changes.
 - `latency_badge_json_url` (String) JSON latency badge URL.
 - `latency_badge_url` (String) SVG latency badge URL.
 - `status` (String) Effective status: `Pending`, `Up`, `Down`, `Paused`, or `Maintenance`.
