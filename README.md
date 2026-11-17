@@ -117,7 +117,7 @@ resource "nominal_maintenance_window" "db" {
 
 Monitor types: `Http`, `GraphQL`, `Ping`, `Tcp`, `Dns`, `Tls`, `Heartbeat`, `Udp`, `WebSocket`, `Mysql`, `Redis`, `Postgres`.
 
-Heartbeat monitors expose `heartbeat_url`, `heartbeat_start_url`, `heartbeat_finish_url`, and `heartbeat_error_url` after apply. Badge URLs and rolling uptime are computed on every monitor.
+Heartbeat monitors expose `heartbeat_url`, `heartbeat_start_url`, `heartbeat_finish_url`, and `heartbeat_error_url` after apply. Set `heartbeat_slug_enabled` and `heartbeat_slug` to also accept `/api/heartbeat/{slug}`; those computed URLs then use the slug, and the secret token URL still works. Badge URLs and rolling uptime are computed on every monitor.
 
 `group` is deprecated. Use `tags`. If `tags` is omitted, `group` is sent as a single tag so older configs still apply.
 

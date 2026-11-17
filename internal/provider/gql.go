@@ -17,6 +17,8 @@ const monitorSelection = `
 	dns_query_name
 	dns_query_type
 	heartbeat_token
+	heartbeat_slug
+	heartbeat_slug_enabled
 	heartbeatUrl
 	heartbeatStartUrl
 	heartbeatFinishUrl
@@ -73,6 +75,8 @@ type gqlMonitor struct {
 	DNSQueryName         *string        `json:"dns_query_name"`
 	DNSQueryType         *string        `json:"dns_query_type"`
 	HeartbeatToken       *string        `json:"heartbeat_token"`
+	HeartbeatSlug        *string        `json:"heartbeat_slug"`
+	HeartbeatSlugEnabled bool           `json:"heartbeat_slug_enabled"`
 	HeartbeatURL         *string        `json:"heartbeatUrl"`
 	HeartbeatStartURL    *string        `json:"heartbeatStartUrl"`
 	HeartbeatFinishURL   *string        `json:"heartbeatFinishUrl"`
